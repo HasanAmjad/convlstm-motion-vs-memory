@@ -5,11 +5,7 @@ import numpy as np
 
 
 def pooled_flow(train_uint8, n_videos=50):
-    """Flow on every consecutive pair (x_s, x_{s+1}), s = 1..19, of the first n videos.
-
-    Keeps pixels brighter than 0.2 (on [0,1]) at the same location in both frames
-    and with flow magnitude > 0.5 px. Returns dx, dy (pixels) and the pair count.
-    """
+    """Farneback flow on consecutive pairs; keeps bright (>0.2) pixels moving > 0.5 px."""
     dxs, dys, n_pairs = [], [], 0
     for v in range(n_videos):
         vid = train_uint8[v, :, 0].numpy()               # (20, 64, 64) uint8

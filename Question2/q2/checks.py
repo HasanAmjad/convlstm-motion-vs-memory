@@ -9,8 +9,7 @@ def _maxabs(a, b):
 
 
 def _bright(v):
-    """(frame, row, column) of the single bright pixel. The handout calls the
-    tensor index p[7, ...] "frame 7", so the frame is reported as that index."""
+    """(frame index, row, column) of the bright pixel."""
     idx = (v == 1).nonzero()
     assert len(idx) == 1, f"expected one bright pixel, found {len(idx)}"
     f, _, r, c = idx[0].tolist()
@@ -75,4 +74,4 @@ def print_table1(rows):
     for r in rows:
         flag = "OK " if r["ok"] else "FAIL"
         print(f"({r['check']}) {r['what']:{w}}  {r['expected']:38}  {r['yours']}  [{flag}]")
-    print("\nALL CHECKS PASS" if all(r["ok"] for r in rows) else "\nSOME CHECKS FAIL - fix before continuing")
+    print("\nALL CHECKS PASS" if all(r["ok"] for r in rows) else "\nSOME CHECKS FAIL")

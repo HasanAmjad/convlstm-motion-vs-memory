@@ -1,7 +1,4 @@
-"""ConvLSTM forecaster (model A) following Shi et al. (2015) without peepholes.
-
-The same class builds model D later by changing patch size / kernel / dilation.
-"""
+"""ConvLSTM forecaster (Shi et al., 2015, no peepholes) and reference predictors."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -26,12 +23,7 @@ class ConvLSTMCell(nn.Module):
 
 
 class ConvLSTMForecaster(nn.Module):
-    """Patch-fold -> stacked ConvLSTM -> 1x1 conv -> pixel_shuffle -> sigmoid.
-
-    Rollout: 9 steps; steps 1-5 read the input frames, steps 6-9 read the
-    network's own previous prediction (no teacher forcing, gradients flow
-    through the fed-back predictions). Outputs of steps 5-9 are the forecast.
-    """
+    """9-step rollout; steps 6-9 feed back own predictions; outputs of steps 5-9 returned."""
 
     def __init__(self, patch=4, hidden=(64, 64), kernels=(3, 3), dilations=(1, 1)):
         super().__init__()
@@ -55,7 +47,7 @@ class ConvLSTMForecaster(nn.Module):
         return out, new_states
 
     def forward(self, X, n_out=5):
-        """X: (B, 5, 1, 64, 64) in [0, 1]  ->  Y_hat: (B, n_out, 1, 64, 64)."""
+        """(B, 5, 1, 64, 64) -> (B, n_out, 1, 64, 64)."""
         B, T_in, C, H, W = X.shape
         gh, gw = H // self.patch, W // self.patch
         states = [(X.new_zeros(B, c.hid_ch, gh, gw), X.new_zeros(B, c.hid_ch, gh, gw))

@@ -35,14 +35,12 @@ def seed_everything(seed: int):
 
 
 def load_moving_mnist():
-    """All 10,000 videos as a uint8 tensor of shape (10000, 20, 1, 64, 64).
-
-    Kept as uint8 (about 0.8 GB) and converted to float in [0, 1] per batch with
-    `to_float`, so the whole set never sits in memory as float32 (3.3 GB).
-    The built-in split="train"/"test" options are NOT used (they split frames).
-    """
+    """All 10,000 videos, uint8, shape (10000, 20, 1, 64, 64)."""
     from torchvision.datasets import MovingMNIST
 
+    f = DATA_DIR / "MovingMNIST" / "mnist_test_seq.npy"
+    if f.exists() and f.stat().st_size < 819_200_000:
+        raise RuntimeError(f"{f} is incomplete ({f.stat().st_size:,} bytes); finish the download first")
     ds = MovingMNIST(root=str(DATA_DIR), split=None, download=True)
     data = ds.data if hasattr(ds, "data") else torch.stack([ds[i] for i in range(len(ds))])
     data = torch.as_tensor(data)
@@ -52,7 +50,7 @@ def load_moving_mnist():
 
 
 def splits(data):
-    """Manual split by dataset index: 0-7999 train, 8000-8999 val, 9000-9999 test."""
+    """Train 0-7999, val 8000-8999, test 9000-9999."""
     return data[0:8000], data[8000:9000], data[9000:10000]
 
 

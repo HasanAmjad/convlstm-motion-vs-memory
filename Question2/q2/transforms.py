@@ -1,9 +1,4 @@
-"""Mirror, rotation, the 8 symmetries of the square, and speed windows.
-
-All spatial transforms act on the last two dimensions (rows, columns), so they
-work on a single frame (1, 64, 64), a video (20, 1, 64, 64) or a batch
-(B, T, 1, 64, 64). Frames are numbered 1-20 as in the handout.
-"""
+"""Mirror, rotation, symmetry group G and speed windows (frames numbered 1-20)."""
 import torch
 
 # ---------------------------------------------------------------- symmetries
@@ -57,13 +52,7 @@ def window_frames(t, k):
 
 
 def get_window(video, t=1, k=1):
-    """Cut a window out of a video (or batch of videos) along the time axis.
-
-    video: (..., 20, C, H, W). Returns
-      X    (..., 5, C, H, W)  input frames
-      Y    (..., 5, C, H, W)  target frames, zero-padded where the frame does not exist
-      mask (5,) bool          True for horizons whose target frame exists
-    """
+    """video (..., 20, C, H, W) -> X, Y (zero-padded), mask of existing targets."""
     inp, tgt = window_frames(t, k)
     tdim = video.dim() - 4
     X = video.index_select(tdim, torch.tensor([f - 1 for f in inp], device=video.device))
