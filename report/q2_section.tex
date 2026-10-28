@@ -39,6 +39,88 @@
 
 \paragraph{Q2.3.} One cell of the folded $16\times16$ grid is 4 original pixels. A $3\times3$ convolution moves information by at most one cell (4 px); the $1\times1$ output convolution and pixel (un)shuffle move nothing, and the cell-state update is element-wise. Within one step $\tau$, the longest path is $u_\tau$ (or $h^{(1)}_{\tau-1}$) $\to$ layer-1 convolution $\to h^{(1)}_\tau \to$ layer-2 convolution $\to h^{(2)}_\tau \to \hat x_{\tau+1}$: two $3\times3$ convolutions, so 2 cells $=$ \textbf{8 px per time step}. The path from $h^{(2)}_{\tau-1}$ crosses only the layer-2 convolution (4 px).
 
-\paragraph{Q2.5 (written before testing; unedited).} \todo{paste final text of Question2/preregistration/Q2.5\_predictions.md}
+\begin{table}[H]\centering\small
+\caption*{\textbf{Table 2.} Test error at $1\times$ ($t=1$), mean (seed 0, seed 1).}
+\begin{tabular}{@{}lccccccr@{}}
+\toprule
+ & MSE$_1$ & MSE$_2$ & MSE$_3$ & MSE$_4$ & MSE$_5$ & $E^{(5)}$ & Params\\
+\midrule
+A & \makecell{0.0172\\(0.0176, 0.0167)} & \makecell{0.0205\\(0.0210, 0.0200)} & \makecell{0.0228\\(0.0233, 0.0222)} & \makecell{0.0244\\(0.0250, 0.0238)} & \makecell{0.0260\\(0.0266, 0.0255)} & \makecell{0.0222\\(0.0227, 0.0216)} & 480,784\\
+Blank & 0.0426 & 0.0426 & 0.0426 & 0.0425 & 0.0425 & 0.0426 & 0\\
+Copy-last & 0.0492 & 0.0604 & 0.0669 & 0.0708 & 0.0732 & 0.0641 & 0\\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\todo{Table 2, Figure 2, Q2.4 after training model A.}
+\begin{figure}[H]\centering
+\includegraphics[width=0.62\linewidth]{../Question2/figures/fig2_A_predictions.png}
+\caption*{\textbf{Figure 2.} Model A (seed 0) on three test videos: input frames 1--5, prediction and ground truth for frames 6--10. The first video has overlapping digits.}
+\end{figure}
+
+\paragraph{Q2.4.} Model A beats both references at every horizon: its $E^{(5)}=0.0222$ is about half of Blank (0.0426) and a third of Copy-last (0.0641), so it does more than reproduce the last frame. Its error grows steadily, from 0.0172 at $h=1$ to 0.0260 at $h=5$ (about $1.5\times$), because each prediction is fed back as the next input and errors accumulate. Blank stays flat and Copy-last grows faster (0.0492 to 0.0732). Figure 2 shows why the error stays well above zero: positions are tracked roughly, but the digits blur within two or three steps and lose their identity. When digits overlap in the input, the model predicts one merged blob and separates it late and only vaguely, so the two digits become indistinct smudges.
+
+\paragraph{Q2.5 (written before testing; unedited).}
+\begin{infobox}{Committed to \texttt{Question2/preregistration/Q2.5\_predictions.md} before any test in Section 3}\small
+Reach of model A (Q2.3): about 8 px per time step. Typical training speed (Figure 1): 3.3 px/frame (10--90\%: 2.1--4.1).
+\begin{itemize}
+\item \textbf{Mirror:} passes, mostly. Mirrored motion is already common in training (Figure 1a covers all directions), so the motion should carry over. Mirrored digits look unfamiliar, so expect some blurring of digit shape, and $C_M$ small but not zero.
+\item \textbf{Rotation:} passes the motion part but worse than mirror. Rotated motion is also familiar, but a sideways digit is less like any training digit than a mirrored one, so $C_R > C_M$.
+\item \textbf{Speed:} $2\times$ ($\approx$ 6.6 px/frame) is inside the 8 px reach but above every training speed, so predictions degrade but still follow the digits. $3\times$ ($\approx$ 10 px/frame) is beyond the reach, so the model breaks down there: digits stall or fade near their last input position.
+\end{itemize}
+\end{infobox}
+
+% ---------------------------------------------------------------------
+\subsection*{3. Testing the Baseline}
+
+\begin{table}[H]\centering\small
+\caption*{\textbf{Table 3.} Consistency gaps and transformed errors at $1\times$, mean (seed 0, seed 1).}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+ & $E^{(5)}$ & $C_M$ & $E_M$ & $C_R$ & $E_R$\\
+\midrule
+A & 0.0222 (0.0227, 0.0216) & 0.00176 (0.00158, 0.00195) & 0.0228 (0.0233, 0.0223) & 0.00289 (0.00260, 0.00318) & 0.0239 (0.0242, 0.0236)\\
+Blank & 0.0426 & 0 & 0.0426 & 0 & 0.0426\\
+Copy-last & 0.0641 & 0 & 0.0641 & 0 & 0.0641\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]\centering
+\includegraphics[width=0.49\linewidth]{../Question2/figures/fig3_A_M1_video9980.png}\hfill
+\includegraphics[width=0.49\linewidth]{../Question2/figures/fig3_A_M2_video9269.png}\\[4pt]
+\includegraphics[width=0.49\linewidth]{../Question2/figures/fig3_A_R1_video9925.png}\hfill
+\includegraphics[width=0.49\linewidth]{../Question2/figures/fig3_A_R2_video9513.png}
+\caption*{\textbf{Figure 3.} Test videos with the largest per-video $C_M$ (top) and $C_R$ (bottom), seed-0 model A. Columns 1--5: input; 6--10: horizons 1--5. Rows: (1) $X\,|\,f(X)$, (2) $T(X)\,|\,T(Y)$, (3) $T(X)\,|\,f(T(X))$, (4) $T(X)\,|\,T(f(X))$. GIFs: \texttt{Question2/gifs/fig3\_A\_M\_video9980.gif}, \texttt{fig3\_A\_M\_video9269.gif}, \texttt{fig3\_A\_R\_video9925.gif}, \texttt{fig3\_A\_R\_video9513.gif}.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\includegraphics[width=0.9\linewidth]{../Question2/figures/fig4_A_consistency_hist.png}
+\caption*{\textbf{Figure 4.} Per-video $C_M$ and $C_R$ of seed-0 model A over the 1,000 test videos (log scale). Red lines: the videos in Figure 3.}
+\end{figure}
+
+\paragraph{Q2.6.} Blank ignores the input and Copy-last only repeats it, so both commute with any rearrangement of pixels and have $C_M=C_R=0$, yet their errors (0.0426 and 0.0641) are the worst in Table 3. A small $C_T$ only says that the model treats the transformed clip the same way as the original, not that it treats either one correctly: a model can be consistently wrong. $E_T$ measures correctness on the transformed clip, so the two must be read together.
+
+\paragraph{Q2.7.} Video 9925 under rotation (Figure 3, bottom left). In the rotated clip (row 2) one digit sits at the top and the other at the bottom left, and both drift slowly. Predicting from the rotated input (row 3), the model stretches the top digit downwards into a vertical streak that by $h=3$ reaches the lower digit, so the two digits merge into one column and the top digit becomes unrecognisable. Rotating the original prediction (row 4) instead gives two separate horizontal blobs that stay near their last positions and fade. So on the rotated clip the model invents a downward motion for the top digit that is not in the data and loses it in a smear, while on the upright clip it keeps both digits apart. The motion rule it applies depends on what the digits look like.
+
+\paragraph{Q2.8.} Yes. For model A, $C_R=0.00289$ is about 1.6 times $C_M=0.00176$, and the cost of transforming the clip is larger under rotation ($E_R-E^{(5)}=0.0017$) than under mirroring ($E_M-E^{(5)}=0.0006$). By Q2.1 both transformations give motion that is already common in training, so the motion does not explain the gap. By Q2.2 what differs is appearance: a mirrored digit keeps its upright strokes, while a rotated digit lies on its side and is further from anything in training. The difference therefore comes from appearance.
+
+\begin{table}[H]\centering\small
+\caption*{\textbf{Table 4.} Model A at higher speed ($t=1$), mean (seed 0, seed 1). Blank: $E^{(2)}=0.0426$, 0.0425, 0.0426 at $1\times$, $2\times$, $3\times$.}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+ & $E^{(2)}$ $1\times$ & $E^{(2)}$ $2\times$ & $E^{(2)}$ $3\times$ & $E^{(5)}$ $1\times$ & $E^{(5)}$ $2\times$\\
+\midrule
+A & 0.0189 (0.0193, 0.0184) & 0.0444 (0.0431, 0.0457) & 0.0522 (0.0511, 0.0533) & 0.0222 (0.0227, 0.0216) & 0.0488 (0.0467, 0.0509)\\
+Copy-last & 0.0548 & 0.0661 & 0.0703 & 0.0641 & 0.0719\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]\centering
+\includegraphics[width=\linewidth]{../Question2/figures/fig5_A_speed.png}
+\caption*{\textbf{Figure 5.} Test video 9026 at $1\times$, $2\times$, $3\times$ (seed-0 model A): five input frames, first two predicted and true frames. The digits do not overlap in any displayed true frame.}
+\end{figure}
+
+\paragraph{Q2.9.} Model A already falls apart at $2\times$: $E^{(2)}$ rises from 0.0189 to 0.0444, worse than Blank (0.0425), and reaches 0.0522 at $3\times$. This does not agree with the reach estimate, which put $2\times$ (6.6 px/frame) inside the 8 px reach. The estimate missed two things. First, 8 px is the most information can move along the single longest path; to follow a digit the model must also detect its displacement, and in layer~1 the new frame and the previous state meet in one $3\times3$ convolution that spans only one cell (4 px). A 6.6 px jump is not visible there, so the motion has to be both detected and carried forward within the same two-layer budget. Second, the model only learned displacements of about 2--5 px, so even moves within reach are ones it never had to make. In Figure 5, at $1\times$ both digits move correctly but blur. At $2\times$ and $3\times$ the digits stall near their last input position and fade into blobs instead of jumping to the true position. Stalling and fading suggest the model falls back to a blurred copy of the last frame: it does not connect the old and new positions, so it hedges by spreading intensity near where the digit was.
+
+\paragraph{Q2.10.} No. Both explanations predict the same thing here: at $2\times$ and $3\times$ the digits move faster than anything model A saw in training (Figure 1b: 2.1--4.1 px/frame for 80\% of pixels), and at $3\times$ also faster than its 8 px reach. Since model A was trained on $1\times$ only, the two causes are confounded. To separate them, train the same architecture on all three speeds (model C). If the failure is unfamiliar motion, C should recover at $2\times$ and $3\times$. If it is reach, C should improve at $2\times$ (within reach) but still fail at $3\times$, and only a model with larger reach trained on the same speeds (model D) should fix $3\times$.

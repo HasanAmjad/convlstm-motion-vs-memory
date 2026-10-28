@@ -23,3 +23,7 @@ data/
 
 # local virtual environment
 .venv/
+
+# timing-test runs
+Question2/checkpoints/*_ep*.pt
+Question2/results/train_*_ep*.json
