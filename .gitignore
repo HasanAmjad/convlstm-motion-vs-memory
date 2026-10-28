@@ -1,0 +1,22 @@
+# macOS / editors
+.DS_Store
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+
+# course material not part of this submission
+Question1/
+DL4STG_PA2.pdf
+
+# dataset (downloaded by torchvision)
+data/
+**/MovingMNIST/
+
+# LaTeX build files
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk

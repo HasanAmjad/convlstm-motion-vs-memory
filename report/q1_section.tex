@@ -1,0 +1,304 @@
+% =====================================================================
+\section*{Question 1 -- River Forecasting Proposal}
+\addcontentsline{toc}{section}{Question 1}
+
+\noindent\textbf{Service.} Every ten minutes, forecast the water level at the four main-river stations S1--S4 for each ten-minute step of the next hour.
+
+\noindent\textbf{Design in one sentence.} All sources are placed on one space--time grid (places $\times$ ten-minute steps). A causal temporal convolution summarises what has happened at each place. Four rounds of \emph{upstream attention} then pass information down the river, with the travel delay learned rather than fixed. A small head predicts each station's change in level over the next hour.
+
+% ---------------------------------------------------------------------
+\subsection*{1. Architecture diagram}
+
+\begin{figure}[H]\centering
+\begin{tikzpicture}[
+  font=\small,
+  src/.style={draw=boxnavy,fill=boxgray,rounded corners=2pt,align=flush center,minimum height=1.0cm,text width=2.75cm,inner sep=3pt},
+  blk/.style={draw=headteal,fill=headteal!8,rounded corners=2pt,align=flush center,minimum height=0.95cm,text width=11.2cm,inner sep=4pt},
+  dim/.style={font=\scriptsize\ttfamily,text=headteal!80!black,align=left,anchor=west},
+  arr/.style={-{Stealth[length=2.2mm]},thick,draw=black!70},
+  node distance=5mm
+]
+% ----- data sources -----
+\node[src] (map) at (0,0) {\textbf{River map}\\edges + distances};
+\node[src,right=2.5mm of map] (lev) {\textbf{Water levels}\\S1--S4, T1 (10 min)};
+\node[src,right=2.5mm of lev] (rain) {\textbf{Rainfall}\\R1, R2 (irregular)};
+\node[src,right=2.5mm of rain] (rel) {\textbf{Releases}\\actual + announced};
+
+% ----- alignment -----
+\node[blk,below=7mm of rain.south west,anchor=north] (align) {\textbf{Align to one 10-minute clock} (only information known at $t_0$)\\
+levels to nearest mark, else missing $\cdot$ rain summed per 10 min: R1$\to$row S2, R2$\to$row S3\\
+releases averaged per 10 min by effective time; plans only if announced $\le t_0$};
+\draw[arr] (lev.south) -- (lev.south|-align.north);
+\draw[arr] (rain.south) -- (rain.south|-align.north);
+\draw[arr] (rel.south) -- (rel.south|-align.north);
+
+\node[blk,below=of align] (grid) {\textbf{Space--time grid $\mathbf X$}: 6 places (Dam, S1, T1, S2, S3, S4) $\times$ 36 steps (30 past + 6 future)\\
+cell $=[\ell,\ m_\ell,\ r,\ m_r,\ q,\ s]$; future levels empty, Dam future cells = announced plan};
+\node[dim,right=1.5mm of grid] {$B{\times}36{\times}6{\times}6$\\+ calendar\\$B{\times}36{\times}4$};
+\draw[arr] (align) -- (grid);
+
+\node[blk,below=of grid] (emb) {\textbf{Input projection}: linear $6\to64$ per cell + place embedding + time embedding;\\reshape so time runs along one axis for each place};
+\node[dim,right=1.5mm of emb] {$B{\times}6{\times}36{\times}64$};
+\draw[arr] (grid) -- (emb);
+
+\node[blk,below=of emb] (tcn) {\textbf{Block 1 -- Look back}: causal dilated TCN along time, at each place (shared weights)\\5 layers, kernel 3, dilations 1, 2, 4, 8, 16 $\Rightarrow$ receptive field 63 $\ge$ 36 steps};
+\node[dim,right=1.5mm of tcn] {$B{\times}6{\times}36{\times}64$};
+\draw[arr] (emb) -- (tcn);
+
+\node[blk,below=of tcn] (att) {\textbf{Block 2 -- Pass downstream} ($\times$4 rounds): each place attends to its upstream places'\\states at earlier steps $\tau'\le\tau$; keys carry distance $d_{ji}$ and lag $\tau-\tau'$ $\Rightarrow$ learned delay\\4 rounds = 4 hops: Dam$\to$S1$\to$S2$\to$S3$\to$S4 (graph in Figure~\ref{fig:q1graph})};
+\node[dim,right=1.5mm of att] {$B{\times}6{\times}36{\times}64$};
+\draw[arr] (tcn) -- (att);
+\draw[arr,dashed] (map.south) -- ++(0,-0.3) -| ($(att.west)+(-0.45,0)$) -- (att.west);
+\node[font=\scriptsize,rotate=90] at ($(tcn.west)+(-0.72,0)$) {river edges, distances $d_{ji}$};
+
+\node[blk,below=of att] (sel) {\textbf{Select} station rows S1--S4 at future steps $k=1,\dots,6$};
+\node[dim,right=1.5mm of sel] {$B{\times}4{\times}6{\times}64$};
+\draw[arr] (att) -- (sel);
+
+\node[blk,below=of sel] (head) {\textbf{Block 3 -- Predict ahead}: shared MLP $g$ gives the change $\hat\Delta_{s,k}$\\$\hat y_{s,k} = \tilde\ell_{s,0} + \sigma_s\,\hat\Delta_{s,k}$ \ (latest valid level + scaled change)};
+\node[dim,right=1.5mm of head] {$B{\times}4{\times}6$};
+\draw[arr] (sel) -- (head);
+
+\node[src,below=5mm of head,text width=8cm,fill=headteal!15] (out) {\textbf{Forecasts $\hat{\mathbf Y}$}: levels at S1--S4 for $t_0{+}10,\dots,t_0{+}60$ min};
+\draw[arr] (head) -- (out);
+\end{tikzpicture}
+\caption{Proposed forecasting system. Grey boxes are data sources; teal boxes are processing blocks, with tensor shapes on the right ($B$ = issuances in a batch).}
+\label{fig:q1arch}
+\end{figure}
+
+\begin{figure}[H]\centering
+\begin{tikzpicture}[font=\footnotesize,
+  st/.style={circle,draw=headteal,fill=white,thick,minimum size=9.5mm,inner sep=0pt,font=\scriptsize\bfseries},
+  rg/.style={rectangle,draw=boxnavy,fill=boxgray,minimum size=6mm,inner sep=2pt},
+  e/.style={-{Stealth[length=2mm]},thick,headteal}]
+\node[st] (D) at (0,0) {Dam};
+\node[st] (s1) at (1.8,0) {S1};
+\node[st] (s2) at (3.6,0) {S2};
+\node[st] (s3) at (5.4,0) {S3};
+\node[st] (s4) at (7.2,0) {S4};
+\node[st] (t1) at (2.7,1.3) {T1};
+\node[circle,draw=gray,dashed,minimum size=7mm] (u) at (4.5,1.3) {?};
+\node[rg] (r1) at (3.6,-1.3) {R1};
+\node[rg] (r2) at (5.4,-1.3) {R2};
+\draw[e] (D)--node[above,font=\scriptsize]{$d$}(s1); \draw[e] (s1)--node[below,font=\scriptsize]{$d$}(s2); \draw[e] (t1)--(s2); \draw[e] (s2)--node[below,font=\scriptsize]{$d$}(s3); \draw[e] (s3)--node[above,font=\scriptsize]{$d$}(s4);
+\draw[-{Stealth},dotted,thick,boxnavy] (r1)--(s2); \draw[-{Stealth},dotted,thick,boxnavy] (r2)--(s3);
+\draw[-{Stealth},dashed,gray] (u)--(s3);
+\node[anchor=west,align=left,font=\scriptsize] at (8.0,0) {solid: river edges (with distance $d$)\\dotted: rain added to that row\\dashed ?: unmonitored tributary,\\\quad not observed (R2 is its proxy)};
+\end{tikzpicture}
+\caption{River graph used by Block 2. Edges point downstream; ``upstream of $i$'' means the places with an edge into $i$.}
+\label{fig:q1graph}
+\end{figure}
+
+% ---------------------------------------------------------------------
+\subsection*{2. Assumptions}
+
+\noindent\textbf{Supplied facts (from the handout), kept separate from assumptions.}
+F1 levels at S1--S4 and T1 every 10 minutes;
+F2 rainfall at R1, R2 with timestamps and gauge locations;
+F3 recorded releases, and future release schedules with announcement and effective times;
+F4 station locations, connectivity and river distances;
+F5 a monitored tributary (T1) joins between S1 and S2, an unmonitored one between S2 and S3;
+F6 stations are unevenly spaced and travel times change with conditions;
+F7 future rainfall, future levels, exact travel times and the unmonitored inflow are not available.
+
+{\small
+\begin{xltabular}{\linewidth}{@{}p{0.6cm}LLL@{}}
+\caption{Assumptions, why each is reasonable, and its effect on the design.}\label{tab:q1assump}\\
+\toprule
+ & Assumption & Why it is reasonable & Effect on the design\\
+\midrule
+\endfirsthead
+\toprule
+ & Assumption & Why it is reasonable & Effect on the design\\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{4}{@{}l}{\emph{Data conditions the handout leaves unspecified}}\\
+A1 & At least 3 years of 10-minute records exist, including several high-water events. & Telemetry networks of this kind usually keep multi-year archives. & Chronological train/validation/test split by year; a small model ($\approx$0.2M parameters) to suit limited flood examples.\\
+A2 & All timestamps use one clock (e.g.\ UTC); level readings are instantaneous values at their timestamp. & Standard for hydrometric telemetry. & Levels snapped to the nearest 10-minute mark ($\pm$2 min), otherwise marked missing.\\
+A3 & Each rain reading is the total since the previous reading (tipping-bucket style), at irregular times. & The handout gives timestamps but not the reading's meaning; this is the common gauge output. & Rain summed into 10-minute bins by observation time.\\
+A4 & Levels normally arrive within $\sim$5 min, rain within $\sim$20 min, releases within 10 min; occasionally hours late. & Typical of radio/cellular telemetry. & Forecast issued on time with whatever has arrived; late cells treated as missing (Section 5).\\
+A5 & Data contain gaps, spikes and flat-lines, but no systematic long-term drift. & Common sensor faults. & Simple quality screen marks impossible jumps as missing; a missing-value flag per cell.\\
+A6 & Release schedules are archived with announcement and effective times, so the plan known at any past $t_0$ can be rebuilt. & The authority records announcements (F3). & Training uses the plan \emph{as announced}, not the actual release, so there is no leakage.\\
+A7 & Water travels from the dam to S4 in at most $\sim$4 hours at low flow, and rainfall reaches the river mostly within $\sim$5 hours. & The illustration suggests a short mountain river; to be checked on data. & History window $H=30$ steps (5 h).\\
+A8 & Flood alert levels $\theta_s$ for each station are known, or can be set at a high percentile of the record. & Authorities normally define warning levels. & Higher loss weight above $\theta_s$.\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{River dynamics assumed by the model}}\\
+A9 & Water only moves downstream; backwater from junctions does not affect upstream gauges within an hour. & True for a steep river with free-flowing junctions. & Information passes only along downstream edges.\\
+A10 & Travel time is positive, varies with flow (faster at high water), and changes smoothly. & Wave speed rises with depth (F6). & Delay is learned by attention that depends on the current state; not hard-coded.\\
+A11 & R1 represents rain on the local catchment between S1 and S2; R2 represents the unmonitored tributary's catchment, which drains to S3. & Gauge positions in the handout figure. & R1 is placed in row S2 and R2 in row S3.\\
+A12 & The unmonitored inflow is driven mainly by rain on its catchment, plus a slow baseflow. & Usual behaviour of small tributaries. & R2 history is a usable proxy; the remaining error appears as wider uncertainty at S3/S4.\\
+A13 & Releases are the only controlled inflow; withdrawals between stations are negligible. & No abstractions are mentioned. & No extra input rows needed.\\
+A14 & Without a newer announcement, the current release continues. & Operators usually change releases by announcement. & Future Dam cells filled with the current rate when no plan exists (flag $s=1$).\\
+A15 & Gauge datums and channel shape are stable over the record. & No changes are mentioned. & One model over the whole record; retrain if a datum changes.\\
+\end{xltabular}}
+
+% ---------------------------------------------------------------------
+\subsection*{3. Forecasting task and data specification}
+
+\textbf{Issuance and horizon.} A forecast is issued every 10 minutes at time $t_0$ (on the :00, :10, \dots\ marks). It predicts the level at S1--S4 at the six lead times $t_0+10k$ minutes, $k=1,\dots,6$, so the one-hour horizon is covered at ten-minute resolution: a $4\times6$ output per issuance.
+
+\textbf{History window.} The model sees the last $H=30$ steps (5 hours, $t_0-290$ min to $t_0$). This covers the slowest assumed travel and rainfall response times (A7), with margin. The actual delay inside the window is learned.
+
+\textbf{Grid.} All inputs share one grid with $T=H+6=36$ columns ($\tau=-29,\dots,0$ past; $\tau=1,\dots,6$ future) and $P=6$ rows (Dam, S1, T1, S2, S3, S4). Each cell holds $F=6$ features: level $\ell$, level-observed flag $m_\ell$, rain $r$, rain-observed flag $m_r$, release $q$ and planned-release flag $s$. The two extra flags separate ``no rain'' from ``rain unknown'', and ``planned'' from ``measured'' release (needed in Section 5).
+
+\begin{table}[H]\centering\small
+\caption{Inputs and outputs for one batch. $B$ = number of issuances (forecast times) in the batch.}
+\label{tab:q1data}
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}p{2.3cm}LL@{}}
+\toprule
+Item & Shape & Axes & Time coverage\\
+\midrule
+Grid $\mathbf X$ & $B\times36\times6\times6$ & issuance, column $\tau$, place, feature & $t_0-290$ min \dots\ $t_0+60$ min\\
+\quad level $\ell$, flag $m_\ell$ & (in $\mathbf X$) & rows S1--S4, T1 & $\tau\le0$ as observed; $\tau>0$ empty, $m_\ell=0$\\
+\quad rain $r$, flag $m_r$ & (in $\mathbf X$) & R1 in row S2, R2 in row S3 & $\tau\le0$; $\tau>0$ empty, $m_r=0$\\
+\quad release $q$, flag $s$ & (in $\mathbf X$) & Dam row & $\tau\le0$ actual ($s=0$); $\tau>0$ plan announced by $t_0$ ($s=1$)\\
+Calendar $\mathbf C$ & $B\times36\times4$ & issuance, column, $\sin/\cos$ of time of day and day of year & same as $\mathbf X$\\
+River map $\mathcal E$ & 5 edges, each with distance $d_{ji}$ & Dam$\to$S1, S1$\to$S2, T1$\to$S2, S2$\to$S3, S3$\to$S4 & fixed\\
+Output $\hat{\mathbf Y}$ & $B\times4\times6$ & issuance, station S1--S4, lead time $k$ & $t_0+10$ \dots\ $t_0+60$ min\\
+Target $\mathbf Y$, mask $\mathbf M$ & $B\times4\times6$ & as $\hat{\mathbf Y}$ (training only) & same\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Alignment across sampling times.} All sources use one ten-minute clock. A level reading goes in column $\tau$ if its timestamp is within $\pm$2 minutes of $t_0+10\tau$; otherwise the cell is missing. Rain totals (A3) are summed into the interval $(t_0+10(\tau-1),\,t_0+10\tau]$ by observation time. Releases are averaged over each interval and placed by their \emph{effective} time.
+
+\textbf{Alignment across locations.} Values are not interpolated in space. Each source is assigned to one place row (rain via A11), and the river distances enter as features on the edges of the graph used in block~2. Unequal spacing is therefore handled through distances and learned delays, not by treating rows as evenly spaced neighbours.
+
+\textbf{Information available at issuance.} A cell is filled only if its value is known at $t_0$: a measurement must have \emph{arrived} by $t_0$, and a release plan must have been \emph{announced} by $t_0$. Future levels and future rainfall are never available; their cells stay empty with flags set to 0. The only filled future cells are the Dam row's announced releases.
+
+% ---------------------------------------------------------------------
+\subsection*{4. Model computations and design justification}
+
+\textbf{Notation.} Places $p\in\{\text{Dam},\text{S1},\text{T1},\text{S2},\text{S3},\text{S4}\}$; columns $\tau\in\{-29,\dots,6\}$; stations $s\in\{\text{S1},\dots,\text{S4}\}$; lead times $k=1,\dots,6$; hidden width $d=64$. $\mathbf x_{p,\tau}\in\mathbb R^6$ is one grid cell, $\mathcal U(i)$ the set of places directly upstream of $i$ (from $\mathcal E$), and $d_{ji}$ the river distance from $j$ to $i$. Levels are standardised per station using training statistics.
+
+\textbf{Input projection.}
+\begin{equation}
+\mathbf z^{(0)}_{p,\tau} = W_{\text{in}}\,\mathbf x_{p,\tau} + \mathbf e_p + \mathbf c_\tau, \qquad \mathbf z\in\mathbb R^{d},
+\end{equation}
+where $\mathbf e_p$ is a learned place embedding and $\mathbf c_\tau$ a time embedding (calendar features plus column position, so future columns are distinguishable).
+
+\textbf{Block 1 -- Look back (causal dilated TCN, applied to each place with shared weights).} For layers $l=1,\dots,5$ with kernel size 3 and dilation $\delta_l=2^{l-1}$:
+\begin{equation}
+\mathbf z^{(l)}_{p,\tau} = \mathbf z^{(l-1)}_{p,\tau} + \mathrm{ReLU}\Big(\textstyle\sum_{a=0}^{2} A^{(l)}_a\,\mathbf z^{(l-1)}_{p,\,\tau-a\delta_l} + \mathbf b^{(l)}\Big),
+\end{equation}
+with zero padding before $\tau=-29$. Only columns $\le\tau$ are used (causal), and the receptive field is $1+2(1+2+4+8+16)=63\ge36$ columns, so every column can see the whole window. Set $\mathbf h^{0}_{p,\tau}=\mathbf z^{(5)}_{p,\tau}$.
+
+\textbf{Block 2 -- Pass downstream (upstream lag attention, $R=4$ rounds, separate weights per round).} For round $r$ and each place $i$ with $\mathcal U(i)\neq\emptyset$:
+\begin{align}
+\mathbf q_{i,\tau} &= W_Q^{(r)}\mathbf h^{r-1}_{i,\tau}, \qquad
+\mathbf k_{j,\tau'} = W_K^{(r)}\mathbf h^{r-1}_{j,\tau'} + \mathbf u^{(r)}_{\tau-\tau'} + \mathbf w^{(r)} d_{ji}, \qquad
+\mathbf v_{j,\tau'} = W_V^{(r)}\mathbf h^{r-1}_{j,\tau'},\\
+\alpha_{i\tau,\,j\tau'} &= \operatorname*{softmax}_{\,j\in\mathcal U(i),\ \tau'\le\tau}\!\Big(\mathbf q_{i,\tau}^{\top}\mathbf k_{j,\tau'}/\sqrt d\Big), \qquad
+\mathbf m_{i,\tau} = \textstyle\sum_{j,\tau'}\alpha_{i\tau,\,j\tau'}\,\mathbf v_{j,\tau'},\\
+\tilde{\mathbf h}_{i,\tau} &= \mathrm{LN}\big(\mathbf h^{r-1}_{i,\tau} + W_O^{(r)}\mathbf m_{i,\tau}\big), \qquad
+\mathbf h^{r}_{i,\tau} = \mathrm{LN}\big(\tilde{\mathbf h}_{i,\tau} + \mathrm{FFN}^{(r)}(\tilde{\mathbf h}_{i,\tau})\big).
+\end{align}
+$\mathbf u_{\tau-\tau'}$ is a learned lag embedding and $\mathbf w d_{ji}$ a distance term. Places with no upstream neighbour (Dam, T1) keep $\mathbf h^{r}=\mathbf h^{r-1}$. Four heads are used (written as one above for clarity).
+
+\textbf{Block 3 -- Predict ahead.} Each station reads its own representation at future column $k$:
+\begin{equation}
+\hat\Delta_{s,k} = g\big(\mathbf h^{4}_{s,k}\big), \qquad \hat y_{s,k} = \tilde\ell_{s,0} + \sigma_s\,\hat\Delta_{s,k},
+\end{equation}
+where $g$ is a two-layer MLP shared by all stations (the place embedding tells them apart), $\tilde\ell_{s,0}$ is the latest valid level at $s$, and $\sigma_s$ the training standard deviation of one-hour level changes at $s$.
+
+\textbf{Training objective.} Weighted, masked mean squared error, as in the tutorial:
+\begin{equation}
+\mathcal L = \frac{\sum_{b,s,k} M_{b,s,k}\,w_{b,s,k}\,\big(\hat y_{b,s,k}-y_{b,s,k}\big)^2/\sigma_s^2}{\sum_{b,s,k} M_{b,s,k}\,w_{b,s,k}}, \qquad
+w_{b,s,k} = 1 + \lambda\,\mathbb 1\big[y_{b,s,k}\ge\theta_s\big],
+\end{equation}
+with $M=0$ for missing targets, $\lambda=4$ (tuned on validation) and alert levels $\theta_s$ (A8). Adam, early stopping on validation error, chronological split (A1). During training, 10--20\% of cells (and occasionally a whole row) are randomly masked so the model learns to forecast with missing data. \emph{Optional extension:} $g$ outputs the 10/50/90\% quantiles, trained with pinball loss, to give a forecast range.
+
+\textbf{Why this design.}
+\begin{itemize}
+  \item \emph{Upstream paths are required.} A station's own history cannot show water already on its way (companion notebook, Part 1). Block~2 gives every station a path to all upstream sources; four rounds cover the longest path, Dam$\to$S1$\to$S2$\to$S3$\to$S4.
+  \item \emph{Delay must be learned, not fixed.} Travel time changes with flow (F6, A10). Attention weights are recomputed from each input, so the same model can look 50 minutes back on a calm day and 25 minutes back in a flood. A fixed convolution kernel along the river would impose one delay.
+  \item \emph{Unequal spacing.} A spatial convolution treats index neighbours as equally related (notebook, Part 2). Here ``neighbour'' comes from the supplied river connectivity (F4), and distance is an explicit feature.
+  \item \emph{TCN for local history.} A causal dilated TCN (Lecture 4) reaches the full 36-step window with five layers and few parameters, and captures local shape (rising limb, peak) that single-value tokens lack (Lecture 5).
+  \item \emph{Announced releases on the same grid.} Covariates help only when they cover the forecast horizon (finding in PA1). Putting the plan in the Dam row's future cells lets it flow to S1 (and onward) through the same blocks.
+  \item \emph{Predicting the change.} Levels are persistent over one hour; predicting $\hat\Delta$ makes persistence the default, so the network learns only rises and falls.
+  \item \emph{Cost.} The graph is tiny (6 places, 5 edges), so the quadratic cost of attention is negligible (see Section~5).
+\end{itemize}
+
+\textbf{How each source reaches each forecast.}
+\begin{itemize}
+  \item \emph{Reservoir releases} (past and planned) enter at the Dam row and reach S1 in round~1, S2 in round~2, S3 in round~3 and S4 in round~4.
+  \item \emph{Upstream conditions}: each station attends to its upstream neighbours' histories, which already contain everything further upstream from earlier rounds.
+  \item \emph{Monitored tributary}: T1 is a direct upstream neighbour of S2, and so indirectly of S3 and S4.
+  \item \emph{Rainfall}: R1 enters at S2's row (local inflow); R2 enters at S3's row as the proxy for the unmonitored tributary (A11, A12). The TCN learns the delay between rain and river response.
+\end{itemize}
+
+\textbf{Physical assumptions vs.\ learned mappings.}
+\begin{table}[H]\centering\small
+\begin{tabularx}{\linewidth}{@{}LL@{}}
+\toprule
+Imposed by design (physical assumptions) & Learned from data\\
+\midrule
+Flow direction and connectivity: information moves only downstream (A9) & Travel time and how it changes with flow (attention over lags)\\
+Causality: no column uses later columns; nothing unknown at $t_0$ & Attenuation and spreading of flood waves between stations\\
+Where each source enters the river (Dam$\to$S1, T1$\to$S2, rain rows; A11) & Rainfall-to-level response and its delay\\
+Positive, bounded delay: at most 5 h (A7) & Unmonitored inflow, inferred from R2 and the S2--S3 difference\\
+Continuity: forecast = current level + change & How reliable announced releases are (via flag $s$)\\
+\bottomrule
+\end{tabularx}
+\end{table}
+No separate physical simulator is used; the physics enters through the structure above. Uncertainty is addressed by the optional quantile output and by the flags described in Sections 5 and 6.
+
+\textbf{Baselines for evaluation.} Persistence ($\hat y_{s,k}=\tilde\ell_{s,0}$), and an Autoformer with all places mixed into one token per step (as in PA1). Ablations: no Block~2 (each station alone), no future plan, and fixed rather than attended delays.
+
+% ---------------------------------------------------------------------
+\subsection*{5. Operation and exceptional conditions}
+
+\textbf{(i) Missing observations.} A missing level or rain value is set to 0 with its flag ($m_\ell$ or $m_r$) set to 0, so the model can tell ``missing'' from ``zero''. Random masking during training (Section 4) teaches the model to use upstream and neighbouring rows instead. If a station's current level is missing, the forecast is anchored on its latest valid value $\tilde\ell_{s,0}$ and marked lower-confidence. Missing targets are excluded from the loss ($M=0$). If a whole station has been missing for more than two hours, forecasts are still issued but flagged to operators, and the quantile range widens.
+
+\textbf{(ii) Delayed observations.} The forecast is issued on time at $t_0$ with whatever has arrived; values not yet received are treated as missing. A reading is placed by its \emph{observation} timestamp, but used only if its \emph{arrival} time is $\le t_0$. When a late reading arrives it fills its cell for the next issuance; because one forecast takes milliseconds, the current forecast can also be re-issued at once. Training simulates delays using the observed delay distribution (A4), so the model sees the same gaps it will meet in operation.
+
+\textbf{(iii) Announced future releases.} The latest schedule announced by $t_0$ is placed in the Dam row's future columns ($\tau=1,\dots,6$) by effective time, with $s=1$. A schedule announced after $t_0$ is not used, even if it takes effect earlier. With no announcement, the current rate is assumed to continue (A14). Training uses the plans as they were announced at each past $t_0$ (A6), not the releases that later occurred.
+
+\textbf{(iv) Scheduled vs.\ actual releases.} Once a release is recorded, its past cell holds the actual value with $s=0$, overriding the plan. Because training pairs announced plans with the levels that followed, the model learns how far plans can be trusted, through flag $s$. When the actual release has departed from the plan by more than a set threshold over the last 30 minutes, operators are alerted and the forecast range is widened. Since a forecast is cheap, operators can also run ``what-if'' forecasts for alternative release plans.
+
+\textbf{Feasibility every 10 minutes.} One forecast processes $6\times36=216$ cells. The TCN costs about $216\times5\times3\times64^2\approx1.3\times10^{7}$ multiply--adds; the four attention rounds about $4\times36\times72\times64\times2\times4\approx5\times10^{6}$; the model has roughly $2\times10^{5}$ parameters. This is well under 10 ms on a standard CPU, and data alignment is a few database queries, so a ten-minute cycle leaves a large margin. Training is done offline and repeated periodically (e.g.\ monthly or after a major flood).
+
+% ---------------------------------------------------------------------
+\subsection*{6. Uncertainty, limitations, and additional information}
+
+\begin{table}[H]\centering\small
+\caption{Uncertainties and limitations, their effect on forecasts, and our response.}
+\label{tab:q1limits}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3cm}LL@{}}
+\toprule
+Issue & Effect on forecasts & Response / what remains unresolved\\
+\midrule
+Unmonitored tributary & Biggest blind spot. S3 and S4 may be under-forecast during storms over its catchment, especially if R2 misses a local storm. & R2 used as proxy (A12); S2--S3 difference lets the model infer recent inflow; wider ranges at S3/S4. \emph{Unresolved} for storms not seen by R2.\\
+Changing travel times & Timing errors: a flood peak arriving earlier than the model expects. & Flow-dependent attention over lags; high-water loss weight. \emph{Unresolved} for floods faster than any in the record.\\
+Floods larger than the record & Neural networks extrapolate poorly; peaks may be under-predicted. & Flag inputs outside the training range; fall back to persistence plus upstream rise. A simple physical routing model could be added later.\\
+Future rainfall unknown & Rain falling after $t_0$ can raise levels within the hour, mainly at S2/S3. & Inherent at a one-hour horizon; partly shown in the range. Rain nowcasts would help (request below).\\
+Only two rain gauges & Point readings may miss convective storms. & Learned response averages over many events; uncertainty widens in heavy rain.\\
+Release deviations & S1 (and later S2--S4) wrong when operations depart from the plan. & Actual values override plan once recorded; deviation alert (Section 5).\\
+Sensor faults and late data & Sudden errors or stale inputs. & Masks, random-masking training, quality screen, confidence flags.\\
+Point forecast smooths peaks & MSE predicts a conditional mean, which flattens sharp peaks when outcomes are uncertain (notebook, Think about 1). & Quantile extension gives a range; high-water weighting reduces peak bias.\\
+Changes over time & Channel erosion, new gauges or new reservoir rules make the past less representative. & Monitor error monthly; retrain on recent data.\\
+Limited flood examples & Few high-water events to learn from. & Small model, shared weights across places, data augmentation by masking.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]\centering\small
+\caption{Additional information requested from the authority.}
+\label{tab:q1requests}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.6cm}LL@{}}
+\toprule
+Request & How it would help & Usable without it?\\
+\midrule
+A gauge on the unmonitored tributary (even temporary) & Removes the main blind spot; a temporary record could also calibrate the R2 proxy. & Yes, with wider ranges at S3/S4.\\
+Archived release schedules with announcement times & Lets training use plans exactly as known at each $t_0$ (A6). & Partly: actual releases can stand in for plans, but the model would be over-confident in plans.\\
+Flood alert levels and historical flood reports & Sets loss weights and gives event-based evaluation. & Yes, using high percentiles of the record.\\
+Rainfall radar or short-range rain forecasts & Adds rain expected in the next hour. & Yes; this is the current design.\\
+Rating curves or discharge at the stations & Allows flow-based checks (e.g.\ water balance between stations) and estimates of the unmonitored inflow. & Yes.\\
+Data delay logs and sensor metadata & Realistic delay simulation in training (A4) and better quality screening. & Yes, using assumed delays.\\
+Catchment boundaries for R1, R2 & Confirms which station each gauge drains to (A11). & Yes, with A11 as stated.\\
+Reservoir level and spillway rules & Anticipates uncontrolled spills that are not in the schedule. & Yes, but spills would be missed until seen at S1.\\
+\bottomrule
+\end{tabularx}
+\end{table}

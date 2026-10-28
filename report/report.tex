@@ -1,0 +1,77 @@
+\documentclass[11pt,a4paper]{article}
+% ---------- page and fonts (matched to the AI651 handout, same as PA1) ----------
+\usepackage[margin=1in]{geometry}
+\IfFileExists{lmodern.sty}{\usepackage[T1]{fontenc}\usepackage{lmodern}}{}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xltabular}
+\usepackage{array}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[skip=8pt plus 2pt]{parskip}
+\usepackage{titlesec}
+\usepackage[most]{tcolorbox}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds,calc}
+\usepackage{hyperref}
+
+% ---------- handout colours ----------
+\definecolor{headteal}{RGB}{21,94,117}
+\definecolor{boxnavy}{RGB}{20,60,110}
+\definecolor{boxgray}{RGB}{243,244,246}
+\hypersetup{colorlinks=true,linkcolor=headteal,urlcolor=headteal,citecolor=headteal}
+
+\titleformat{\section}{\color{headteal}\Large\bfseries}{\thesection.}{0.8em}{}
+\titleformat{\subsection}{\color{headteal}\large\bfseries}{\thesubsection.}{0.8em}{}
+\titleformat{\subsubsection}{\color{headteal}\normalsize\bfseries}{\thesubsubsection.}{0.8em}{}
+\titlespacing*{\section}{0pt}{14pt}{8pt}
+\titlespacing*{\subsection}{0pt}{12pt}{6pt}
+\titlespacing*{\subsubsection}{0pt}{10pt}{4pt}
+
+\newtcolorbox{infobox}[1]{enhanced,colback=boxgray,colframe=boxnavy,
+  coltitle=white,fonttitle=\bfseries\small,title={#1},
+  boxrule=0.6pt,arc=1.5pt,left=6pt,right=6pt,top=4pt,bottom=4pt}
+
+\setlist{nosep,leftmargin=1.4em}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+% \todo{...} marks text still to write (red; delete all before submitting)
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+\begin{document}
+
+% =====================================================================
+\thispagestyle{empty}
+\begin{center}
+\textbf{Lahore University of Management Sciences}\\
+Syed Babar Ali School of Science and Engineering (SBASSE)\\
+\textbf{AI651 -- Deep Learning for Space, Time and Graphs}\\
+Fall 2026\\[6pt]
+\textbf{Assignment 2 -- Report}
+\end{center}
+
+\noindent\rule{\linewidth}{0.6pt}\\[2pt]
+\textbf{Name:} Hasan Amjad \hfill \textbf{Roll No.:} 25280042\\[2pt]
+\textbf{GitHub repository:} \url{https://github.com/hasan-amjad/convlstm-motion-vs-memory}\\[-4pt]
+\noindent\rule{\linewidth}{0.6pt}
+
+\paragraph{Summary.} This report presents the work done for both questions of AI651 Assignment 2. Question~1 proposes a forecasting system that issues one-hour-ahead water-level forecasts for stations S1--S4 every ten minutes. The design places all sources on one space--time grid, summarises each location's history with a causal temporal convolution, and passes information downstream along the river with attention that learns the travel delay. Question~2 \todo{one-line summary of Q2 once results are in}.
+
+% =====================================================================
+\input{q1_section}
+
+% =====================================================================
+\clearpage
+\section*{Question 2 -- Motion or Memory?}
+\addcontentsline{toc}{section}{Question 2}
+\todo{Question 2 to be added.}
+
+% =====================================================================
+\clearpage
+\appendix
+\input{ai_appendix}
+
+\end{document}
