@@ -20,3 +20,6 @@ data/
 *.synctex.gz
 *.fls
 *.fdb_latexmk
+
+# local virtual environment
+.venv/
