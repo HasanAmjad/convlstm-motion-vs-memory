@@ -105,3 +105,15 @@ def figure5(windows, preds, i, path):
         axs[r, 0].set_ylabel(f"{k}x", fontsize=9)
     fig.tight_layout(); fig.savefig(path, dpi=150, bbox_inches="tight")
     return fig
+
+
+def same_clips(rows, titles, path, n_cols=5):
+    """Rows of frames (each (n, 1, 64, 64)) with a label per row."""
+    fig, axs = plt.subplots(len(rows), n_cols, figsize=(1.3 * n_cols, 1.35 * len(rows)),
+                            gridspec_kw=dict(wspace=0.05, hspace=0.08))
+    for r, (frames, name) in enumerate(zip(rows, titles)):
+        for c in range(n_cols):
+            _show(axs[r, c], frames[c], f"h={c + 1}" if r == 0 else None)
+        axs[r, 0].set_ylabel(name, rotation=0, ha="right", va="center", fontsize=8)
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    return fig

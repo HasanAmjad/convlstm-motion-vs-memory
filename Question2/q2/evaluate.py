@@ -87,7 +87,10 @@ def fmt(x):
     """3 significant figures; scientific notation below 1e-3."""
     if x == 0:
         return "0"
-    return f"{x:.2e}" if abs(x) < 1e-3 else f"{x:.3g}"
+    if abs(x) < 1e-3:
+        return f"{x:.2e}"
+    s = f"{x:#.3g}"
+    return s.rstrip(".") if "e" not in s else s
 
 
 def cell(vals):

@@ -6,6 +6,8 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{makecell}
+\usepackage{adjustbox}
+\usepackage{caption}
 \usepackage{tabularx}
 \usepackage{xltabular}
 \usepackage{array}
@@ -59,7 +61,7 @@ Fall 2026\\[6pt]
 \textbf{GitHub repository:} \url{https://github.com/HasanAmjad/convlstm-motion-vs-memory}\\[-4pt]
 \noindent\rule{\linewidth}{0.6pt}
 
-\paragraph{Summary.} This report presents the work done for both questions of AI651 Assignment 2. Question~1 proposes a forecasting system that issues one-hour-ahead water-level forecasts for stations S1--S4 every ten minutes. The design places all sources on one space--time grid, summarises each location's history with a causal temporal convolution, and passes information downstream along the river with attention that learns the travel delay. Question~2 \todo{one-line summary of Q2 once results are in}.
+\paragraph{Summary.} This report presents the work done for both questions of AI651 Assignment 2. Question~1 proposes a forecasting system that issues one-hour-ahead water-level forecasts for stations S1--S4 every ten minutes. The design places all sources on one space--time grid, summarises each location's history with a causal temporal convolution, and passes information downstream along the river with attention that learns the travel delay. Question~2 trains a ConvLSTM forecaster on Moving MNIST and tests it under mirror, rotation and speed-up: its small mirror/rotation gap traces to digit appearance, its speed failure mostly to unfamiliar motion and only slightly to reach, and the final model, a larger-reach ConvLSTM averaged over the eight symmetries of the square, is exactly consistent but still blurs digits within a few steps.
 
 % =====================================================================
 \input{q1_section}

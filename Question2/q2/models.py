@@ -79,3 +79,17 @@ class Blank(nn.Module):
 class CopyLast(nn.Module):
     def forward(self, X, n_out=5):
         return X[:, -1:].expand(-1, n_out, -1, -1, -1).clone()
+
+
+class Symmetrised(nn.Module):
+    """f_bar(X) = 1/8 sum_g g^-1 f(g X) over the 8 symmetries of the square."""
+
+    def __init__(self, base):
+        super().__init__()
+        self.base = base
+
+    def forward(self, X, n_out=5):
+        from .transforms import G, apply_g, inverse_g
+        views = torch.cat([apply_g(X, g) for g in G])           # all 8 views in one batch
+        out = self.base(views, n_out).chunk(len(G))
+        return torch.stack([inverse_g(o, g) for o, g in zip(out, G)]).mean(0)
