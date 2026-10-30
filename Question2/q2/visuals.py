@@ -1,4 +1,4 @@
-"""Figures 2-5 and GIFs."""
+"""Figures 2-6, S1 and GIFs."""
 import cv2
 import imageio.v2 as imageio
 import matplotlib.pyplot as plt

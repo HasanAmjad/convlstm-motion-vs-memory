@@ -1,39 +1,4 @@
 \section*{Appendix -- Use of Generative AI}
 \addcontentsline{toc}{section}{Appendix: Generative AI use}
 
-Claude (Anthropic) was used as an assistant. As required by the course AI policy, the main prompts, a summary of each output, and the edits I made are listed below.
-
-\subsection*{Question 1}
-\begin{table}[H]\centering\small
-\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{4.2cm}LL@{}}
-\toprule
-Prompt & Output (summary) & My edits / decisions\\
-\midrule
-``What does part one say? And how shall I need to solve it, first help understand part 1'' & Summary of the Q1 brief, the river setting and the six required headings; link between companion-notebook lessons and design choices. & \todo{your edits}\\
-``More cleanly we need to define an architecture choice for such a river? What are inputs, outputs?'' & A first architecture (graph with lag attention) with input/output tables. & \todo{}\\
-``Check out things we have already in the course folder and then choose'' & Review of Lectures 3--5 and PA1; a design limited to methods covered in the course. & \todo{}\\
-(Shared the course tutorial) & Revised design following the tutorial: one grid, look back / pass downstream / predict, $4\times6$ output, weighted loss. & \todo{}\\
-``Let's solve it now as per the brief provided and the tutorial'' & Draft of Sections 1--6 and the architecture diagram. & \todo{}\\
-\bottomrule
-\end{tabularx}
-\end{table}
-All design decisions and the final content of this report are my own.
-
-\subsection*{Question 2}
-\begin{table}[H]\centering\small
-\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{4.2cm}LL@{}}
-\toprule
-Prompt & Output (summary) & My edits / decisions\\
-\midrule
-``What the part 2 is all about?'' / ``How should we begin?'' & Summary of Question~2 and a step order that commits Q2.5 and Q2.11 before their experiments. & \todo{}\\
-``I'll run things locally, so you can share code only'' & Code in \texttt{Question2/q2/}: transforms, windows, Table~1 checks, optical-flow statistics, model A. & Ran all code on my machine. \todo{}\\
-``Keep things minimal, not overly explained'' & Shorter notebook headings and code comments. & \todo{}\\
-``Next'' (after Step 1) & Training script (protocol of the handout), draft answers Q2.1--Q2.3 and a draft of the Q2.5 predictions. & Reviewed and committed Q2.5 before testing. \todo{}\\
-``Check the outputs'' (after model A) & Evaluation and figure code for Tables 2--4 and Figures 2--5; fixes to the Figure 3 layout and the overlap test used to pick videos. & \todo{}\\
-Shared the course tutorial & Check of the implementation against the tutorial; added a same-clip comparison across models (Figure S1). & \todo{}\\
-(After B and C) & Model D candidates and a validation-only selection script; draft of the Q2.11 predictions. & Reviewed and committed Q2.11 before training B--D. \todo{}\\
-``See if everything ran well'' & Symmetrised wrapper, Tables 5--6, Figure 6, and draft answers Q2.4--Q2.17. & \todo{}\\
-``As it's optional, may get better credit?'' (D+B) & Advice to train D+B and a validation-only script to choose between symmetrised D and D+B. & Trained D+B; kept D after the validation comparison. \todo{}\\
-\bottomrule
-\end{tabularx}
-\end{table}
+Claude (Anthropic) was used to understand different aspects of the assignment, to critically analyse my options, and to compile the report in \LaTeX. Every decision was my own, and all code was run and tested locally on my machine.

@@ -8,7 +8,7 @@ from .common import CKPT_DIR, get_device, load_moving_mnist, save_json, splits, 
 from .evaluate import per_horizon, predict
 from .models import n_params
 from .transforms import get_window
-from .zoo import D_DESIGNS, build, reach_px
+from .zoo import D_CHOICE, D_DESIGNS, build, reach_px
 
 
 def main():
@@ -19,7 +19,7 @@ def main():
     out = {}
     for name in ["C"] + list(D_DESIGNS):
         arch = "A" if name == "C" else name
-        f = CKPT_DIR / f"{name}_s0.pt"
+        f = CKPT_DIR / ("D_s0.pt" if name == D_CHOICE else f"{name}_s0.pt")   # chosen candidate's run is D's seed 0
         if not f.exists():
             print("missing", f.name); continue
         m = build(arch); m.load_state_dict(torch.load(f, map_location="cpu")); m.to(device).eval()

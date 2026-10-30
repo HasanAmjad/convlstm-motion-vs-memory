@@ -1,4 +1,4 @@
-"""Test-set metrics: MSE_h, E(5), E(2), consistency gaps C_T and transformed errors E_T."""
+"""Metrics: MSE_h, E(5), E(2), consistency gaps C_T and transformed errors E_T."""
 import time
 
 import numpy as np
@@ -31,8 +31,9 @@ def per_horizon(P, Y):
     return ((P - Y) ** 2).mean(dim=(2, 3, 4))
 
 
-def test_windows(test_u8):
-    v = to_float(test_u8)
+def test_windows(videos_u8):
+    """Windows at t = 1 for speeds 1x, 2x, 3x (used for the test and validation splits)."""
+    v = to_float(videos_u8)
     return {k: get_window(v, t=1, k=k) for k in (1, 2, 3)}
 
 
